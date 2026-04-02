@@ -5,9 +5,6 @@ import helpers.ResponseValidator;
 import io.cucumber.datatable.DataTable;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
-import io.cucumber.java.en.When;
-import io.restassured.RestAssured;
-import io.restassured.response.Response;
 import support.ScenarioContext;
 
 import java.util.List;
@@ -18,6 +15,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Shared steps reusable across all feature files.
+ *
+ * Guidelines:
+ *   - Only business-readable steps belong here.
+ *   - No JSON field paths, HTTP methods, or endpoint URLs in step text.
+ *   - Technical details (endpoints, payloads, field extraction) live
+ *     in step definition code, NOT in the feature file.
  */
 public class CommonSteps {
 
@@ -43,17 +46,6 @@ public class CommonSteps {
         }
     }
 
-    // ── Generic API calls (for chaining scenarios) ──────────────────────
-
-    @When("I call POST {string} with body:")
-    public void iCallPostWithBody(String path, String body) {
-        Response response = RestAssured.given()
-                .header("correlation-id", context.getCorrelationId())
-                .body(body)
-                .post(path);
-        context.setResponse(response);
-    }
-
     // ── Response assertions ─────────────────────────────────────────────
 
     @Then("the response status code should be {int}")
@@ -61,14 +53,6 @@ public class CommonSteps {
         assertNotNull(context.getResponse(), "No response captured — was the API called?");
         assertEquals(expectedStatus, context.getResponse().getStatusCode(),
                 "Unexpected HTTP status code");
-    }
-
-    @Then("the response field {string} should be {string}")
-    public void theResponseFieldShouldBe(String fieldPath, String expectedValue) {
-        assertNotNull(context.getResponse(), "No response captured — was the API called?");
-        String actual = context.getResponse().jsonPath().getString(fieldPath);
-        assertEquals(expectedValue, actual,
-                "Mismatch on field '" + fieldPath + "'");
     }
 
     @Then("the request should be declined with status {int} and error {string}")
@@ -82,8 +66,6 @@ public class CommonSteps {
     }
 
     // ── Named-expectation validation ────────────────────────────────────
-    //    Feature file says WHAT to validate; the JSON file under
-    //    src/test/resources/expectations/ defines HOW.
 
     @Then("the response body should match expectation {string}")
     public void theResponseBodyShouldMatchExpectation(String expectationName) {
@@ -93,25 +75,5 @@ public class CommonSteps {
         assertTrue(mismatches.isEmpty(),
                 "Response did not match expectation '" + expectationName + "':\n  - "
                         + String.join("\n  - ", mismatches));
-    }
-
-    // ── Store & recall (for chained scenarios) ──────────────────────────
-
-    @Then("I store the response field {string} as {string}")
-    public void iStoreTheResponseField(String fieldPath, String key) {
-        assertNotNull(context.getResponse(), "No response captured — was the API called?");
-        String value = context.getResponse().jsonPath().getString(fieldPath);
-        assertNotNull(value, "Cannot store null value from field '" + fieldPath + "'");
-        context.put(key, value);
-    }
-
-    @Then("the response field {string} should equal stored value {string}")
-    public void theResponseFieldShouldEqualStoredValue(String fieldPath, String key) {
-        assertNotNull(context.getResponse(), "No response captured — was the API called?");
-        String actual = context.getResponse().jsonPath().getString(fieldPath);
-        String expected = context.get(key);
-        assertNotNull(expected, "No stored value found for key '" + key + "'");
-        assertEquals(expected, actual,
-                "Field '" + fieldPath + "' does not match stored value '" + key + "'");
     }
 }

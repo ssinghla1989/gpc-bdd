@@ -63,9 +63,9 @@ src/test/
 - Interactions are registered per-scenario and cleared automatically in `@Before`.
 
 ### Response validation — choosing the right approach
-- **Inline field check** (`the response field "x" should be "y"`) — use for smoke tests or when you only care about 1–2 fields.
-- **Named expectation** (`the response body should match expectation "..."`) — use for anything with complex structure, nested objects, arrays, or more than a couple of fields. This keeps the feature file focused on business intent.
-- **Never** put a wall of field-by-field assertions in the feature file — that belongs in an expectation JSON.
+- **Domain assertion** (`the customer should be eligible`) — preferred. Encapsulates status code + field checks in the step definition. Feature file stays business-readable.
+- **Named expectation** (`the response body should match expectation "..."`) — use for complex responses with many fields, nested objects, or arrays. The JSON expectation file defines structure and matchers.
+- **Never** put JSON field paths, HTTP details, or endpoint URLs in the feature file — those belong in step definitions.
 
 ### Expectation files and matchers
 Expectation files live under `src/test/resources/expectations/{api-name}/{variant}.json`.
@@ -98,15 +98,24 @@ Example:
 
 ### Feature file templates
 The `read-lending-plan-eligibility.feature` contains four scenario patterns:
-1. **Simple scenario** — single API call, 1–2 inline field assertions
+1. **Simple scenario** — single API call, domain assertion (`the customer should be eligible`)
 2. **Scenario Outline** — data-driven with Examples table
 3. **Named expectation** — complex response validated against an expectation JSON
-4. **Chained API calls** — store a value from response A, verify it against response B
+4. **Chained API calls** — call API A then API B, assert business consistency across both
+
+### What belongs WHERE
+
+| In the feature file                  | In the step definition               |
+|--------------------------------------|--------------------------------------|
+| `the customer should be eligible`    | `assertEquals(200, ...statusCode())` |
+| `eligibility for feature "X"`       | `.post(Endpoints.READ_...)`          |
+| `lending config for market "US"`     | `.body(Map.of("market", market))`    |
+| `should agree on installment limits` | `getInt("maxInstallments")`          |
 
 ### Step definitions
-- Put reusable steps in `CommonSteps.java` (mock setup, assertions, expectations, store/recall).
-- Put API-specific Given/When steps in a dedicated `{ApiName}Steps.java` class.
-- Never put shared assertion logic in domain step classes.
+- **CommonSteps** — only generic, reusable steps (mock setup, status code, named expectations).
+- **{ApiName}Steps** — all domain-specific logic: API calls, request construction, business assertions, cross-call comparisons.
+- Never expose JSON field names, endpoints, or HTTP methods in feature file step text.
 
 ### Test data
 - Customer tokens live in `test-data/customers/{market}.json`.

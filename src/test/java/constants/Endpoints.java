@@ -14,4 +14,5 @@ public final class Endpoints {
 
     // Lending
     public static final String READ_LENDING_PLAN_ELIGIBILITY = "/ReadLendingPlanEligibility.v2";
+    public static final String READ_LENDING_CONFIG = "/ReadLendingConfig.v1";
 }

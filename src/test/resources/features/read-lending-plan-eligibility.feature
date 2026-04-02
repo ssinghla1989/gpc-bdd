@@ -5,7 +5,7 @@ Feature: ReadLendingPlanEligibility API
   So that I can offer the correct lending products based on market rules
 
   # ── Template 1: Simple happy-path ─────────────────────────────────────
-  #    Quick smoke test — one or two inline field checks prove the flow works.
+  #    Business-level Given/When/Then — no JSON, no field names, no HTTP codes.
   #    Best for: smoke tests, minimal-confidence checks.
 
   @smoke
@@ -16,8 +16,7 @@ Feature: ReadLendingPlanEligibility API
       | read-lending-config/us-plan-it-enabled   |
     And a "us" market customer
     When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
-    Then the response status code should be 200
-    And the response field "eligible" should be "true"
+    Then the customer should be eligible
 
   # ── Template 2: Data-driven error cases (Scenario Outline) ────────────
   #    Same test logic, parameterised across rows.
@@ -37,10 +36,8 @@ Feature: ReadLendingPlanEligibility API
       | Invalid feature name      | us     | read-member/us-active-basic                                                | INVALID-FEATURE | 422    | Feature name is invalid                      |
 
   # ── Template 3: Named expectation for complex response validation ─────
-  #    The feature file states WHAT to validate; the HOW lives in a JSON
-  #    file under src/test/resources/expectations/.
-  #    The expectation JSON supports matchers: ${notNull}, ${type:number},
-  #    ${regex:pattern}, ${contains:text}, ${greaterThan:n}, ${ignore}.
+  #    Feature file says WHAT to validate; a JSON expectation file under
+  #    src/test/resources/expectations/ defines the structure and matchers.
   #    Best for: responses with many fields, nested objects, or arrays.
 
   Scenario: Eligible response contains full lending configuration
@@ -50,25 +47,21 @@ Feature: ReadLendingPlanEligibility API
       | read-lending-config/us-plan-it-enabled   |
     And a "us" market customer
     When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
-    Then the response status code should be 200
+    Then the customer should be eligible
     And the response body should match expectation "read-lending-plan-eligibility/us-eligible-plan-it-amount"
 
-  # ── Template 4: Chained API calls with cross-call validation ──────────
-  #    Call API A, store a field, call API B, verify stored value.
+  # ── Template 4: Chained API calls ─────────────────────────────────────
+  #    Call API A, then call API B, assert business consistency across both.
+  #    All HTTP details, endpoints, JSON payloads live in step definitions.
   #    Best for: workflows where APIs feed into each other.
 
-  Scenario: Eligibility details are consistent with lending configuration
+  Scenario: Eligibility installment limit matches lending configuration
     Given the following mock interactions are registered:
       | interaction                              |
       | read-member/us-active-basic              |
       | read-lending-config/us-plan-it-enabled   |
     And a "us" market customer
     When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
-    Then the response status code should be 200
-    And I store the response field "maxInstallments" as "planMaxInstallments"
-    When I call POST "/ReadLendingConfig.v1" with body:
-      """
-      { "market": "US" }
-      """
-    Then the response status code should be 200
-    And the response field "maxInstallments" should equal stored value "planMaxInstallments"
+    Then the customer should be eligible
+    When the lending configuration is retrieved for market "US"
+    Then the eligibility and lending configuration should agree on installment limits

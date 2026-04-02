@@ -4,6 +4,9 @@ import helpers.MockHelper;
 import io.cucumber.datatable.DataTable;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
+import io.restassured.RestAssured;
+import io.restassured.response.Response;
 import support.ScenarioContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +31,24 @@ public class CommonSteps {
         table.asMaps().stream()
                 .map(row -> row.get("interaction"))
                 .forEach(MockHelper::registerInteraction);
+    }
+
+    @Given("mock interactions {string} are registered")
+    public void mockInteractionsAreRegistered(String commaDelimited) {
+        for (String interaction : commaDelimited.split(",")) {
+            MockHelper.registerInteraction(interaction.trim());
+        }
+    }
+
+    // ── Generic API calls (for chaining scenarios) ──────────────────────
+
+    @When("I call POST {string} with body:")
+    public void iCallPostWithBody(String path, String body) {
+        Response response = RestAssured.given()
+                .header("correlation-id", context.getCorrelationId())
+                .body(body)
+                .post(path);
+        context.setResponse(response);
     }
 
     // ── Response assertions ─────────────────────────────────────────────
@@ -63,5 +84,36 @@ public class CommonSteps {
         String actualMessage = context.getResponse().jsonPath().getString("error.message");
         assertEquals(expectedMessage, actualMessage,
                 "Unexpected error message");
+    }
+
+    @Then("the response should match:")
+    public void theResponseShouldMatch(DataTable table) {
+        assertNotNull(context.getResponse(), "No response captured — was the API called?");
+        for (var row : table.asMaps()) {
+            String field = row.get("field");
+            String expected = row.get("value");
+            String actual = context.getResponse().jsonPath().getString(field);
+            assertEquals(expected, actual, "Mismatch on field '" + field + "'");
+        }
+    }
+
+    // ── Store & recall (for chained scenarios) ──────────────────────────
+
+    @Then("I store the response field {string} as {string}")
+    public void iStoreTheResponseField(String fieldPath, String key) {
+        assertNotNull(context.getResponse(), "No response captured — was the API called?");
+        String value = context.getResponse().jsonPath().getString(fieldPath);
+        assertNotNull(value, "Cannot store null value from field '" + fieldPath + "'");
+        context.put(key, value);
+    }
+
+    @Then("the response field {string} should equal stored value {string}")
+    public void theResponseFieldShouldEqualStoredValue(String fieldPath, String key) {
+        assertNotNull(context.getResponse(), "No response captured — was the API called?");
+        String actual = context.getResponse().jsonPath().getString(fieldPath);
+        String expected = context.get(key);
+        assertNotNull(expected, "No stored value found for key '" + key + "'");
+        assertEquals(expected, actual,
+                "Field '" + fieldPath + "' does not match stored value '" + key + "'");
     }
 }

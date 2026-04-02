@@ -4,30 +4,11 @@ Feature: ReadLendingPlanEligibility API
   I want to check customer eligibility for Plan It features
   So that I can offer the correct lending products based on market rules
 
-  # ── Negative: market-level ineligibility ──────────────────────────────
-
-  Scenario: Japan market customer is ineligible for Plan It Amount
-    Given the following mock interactions are registered:
-      | interaction                              |
-      | read-member/japan-market-response        |
-    And a "japan" market customer
-    When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
-    Then the request should be declined with status 422 and error "Feature name is invalid for japan market"
-
-  # ── Negative: japan market with supplementary card ────────────────────
-
-  Scenario: Japan market customer with supplementary card is ineligible
-    Given the following mock interactions are registered:
-      | interaction                              |
-      | read-member/japan-active-supplementary   |
-    And a "japan" market customer
-    When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
-    Then the request should be declined with status 422 and error "Feature name is invalid for japan market"
-
-  # ── Positive: fully eligible customer ─────────────────────────────────
+  # ── Template 1: Simple happy-path scenario ────────────────────────────
+  #    Use when: single API call with straightforward pass/fail assertions.
 
   @smoke
-  Scenario: US market active account with basic card is eligible for Plan It Amount
+  Scenario: US market active basic-card customer is eligible for Plan It Amount
     Given the following mock interactions are registered:
       | interaction                              |
       | read-member/us-active-basic              |
@@ -38,54 +19,59 @@ Feature: ReadLendingPlanEligibility API
     And the response field "eligible" should be "true"
     And the response should contain field "maxInstallments"
 
-  # ── Negative: inactive account ────────────────────────────────────────
+  # ── Template 2: Data-driven error cases via Scenario Outline ──────────
+  #    Use when: multiple inputs produce different expected errors/statuses
+  #    and the test logic is identical across rows.
 
-  Scenario: Inactive account is declined regardless of market or card
-    Given the following mock interactions are registered:
-      | interaction                              |
-      | read-member/us-inactive-basic            |
-    And a "us" market customer
-    When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
-    Then the request should be declined with status 422 and error "Account is not active"
+  Scenario Outline: Decline — <reason>
+    Given mock interactions "<interactions>" are registered
+    And a "<market>" market customer
+    When the customer checks eligibility for feature "<feature>"
+    Then the request should be declined with status <status> and error "<error>"
 
-  # ── Negative: closed account ──────────────────────────────────────────
+    Examples:
+      | reason                    | market | interactions                                                              | feature         | status | error                                       |
+      | Japan market ineligible   | japan  | read-member/japan-market-response                                         | PLAN-IT-AMOUNT  | 422    | Feature name is invalid for japan market     |
+      | Inactive account          | us     | read-member/us-inactive-basic                                             | PLAN-IT-AMOUNT  | 422    | Account is not active                        |
+      | Supplementary card holder | us     | read-member/us-active-supplementary,read-lending-config/us-plan-it-enabled | PLAN-IT-AMOUNT  | 422    | Supplementary card holders are not eligible  |
+      | Invalid feature name      | us     | read-member/us-active-basic                                               | INVALID-FEATURE | 422    | Feature name is invalid                      |
 
-  Scenario: Closed account is declined for Plan It
-    Given the following mock interactions are registered:
-      | interaction                              |
-      | read-member/us-closed-basic              |
-    And a "us" market customer
-    When the customer checks eligibility for feature "PLAN-IT-TRANSACTION"
-    Then the request should be declined with status 422 and error "Account is not active"
+  # ── Template 3: Multi-field response validation with DataTable ────────
+  #    Use when: you need to assert many response fields at once.
+  #    The DataTable keeps the feature file readable without a wall of And-steps.
 
-  # ── Negative: supplementary card ──────────────────────────────────────
-
-  Scenario: Supplementary card holder is ineligible for Plan It
-    Given the following mock interactions are registered:
-      | interaction                              |
-      | read-member/us-active-supplementary      |
-      | read-lending-config/us-plan-it-enabled   |
-    And a "us" market customer
-    When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
-    Then the request should be declined with status 422 and error "Supplementary card holders are not eligible"
-
-  # ── Negative: invalid feature name ────────────────────────────────────
-
-  Scenario: Requesting an unknown feature name returns validation error
+  Scenario: Eligible response contains full lending configuration details
     Given the following mock interactions are registered:
       | interaction                              |
       | read-member/us-active-basic              |
+      | read-lending-config/us-plan-it-enabled   |
     And a "us" market customer
-    When the customer checks eligibility for feature "INVALID-FEATURE"
-    Then the request should be declined with status 422 and error "Feature name is invalid"
-
-  # ── Positive: UK market eligible ──────────────────────────────────────
-
-  Scenario: UK market active account with basic card is eligible
-    Given the following mock interactions are registered:
-      | interaction                              |
-      | read-member/uk-active-basic              |
-    And a "uk" market customer
     When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
     Then the response status code should be 200
-    And the response field "eligible" should be "true"
+    And the response should match:
+      | field           | value          |
+      | eligible        | true           |
+      | market          | US             |
+      | featureName     | PLAN-IT-AMOUNT |
+      | maxInstallments | 24             |
+      | minAmount       | 100            |
+
+  # ── Template 4: Chained API calls with stored context ─────────────────
+  #    Use when: a later API call depends on data from an earlier response,
+  #    e.g. read a resource, then update it, then verify the update.
+
+  Scenario: Eligibility details match the downstream lending configuration
+    Given the following mock interactions are registered:
+      | interaction                              |
+      | read-member/us-active-basic              |
+      | read-lending-config/us-plan-it-enabled   |
+    And a "us" market customer
+    When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
+    Then the response status code should be 200
+    And I store the response field "maxInstallments" as "planMaxInstallments"
+    When I call POST "/ReadLendingConfig.v1" with body:
+      """
+      { "market": "US" }
+      """
+    Then the response status code should be 200
+    And the response field "maxInstallments" should equal stored value "planMaxInstallments"

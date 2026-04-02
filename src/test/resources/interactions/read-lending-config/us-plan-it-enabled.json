@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/ReadLendingConfig.v1",
+    "body": {
+      "market": "US"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "market": "US",
+      "enabledFeatures": ["PLAN-IT-AMOUNT", "PLAN-IT-TRANSACTION"],
+      "maxInstallments": 24,
+      "minAmount": 100
+    }
+  }
+}

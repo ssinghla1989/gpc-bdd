@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/ReadMember.v3",
+    "body": {
+      "accountToken": "${accountToken}"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "market": "UK",
+      "accountStatus": "ACTIVE",
+      "cardType": "BASIC"
+    }
+  }
+}

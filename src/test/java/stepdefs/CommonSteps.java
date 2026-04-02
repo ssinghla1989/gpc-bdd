@@ -1,6 +1,7 @@
 package stepdefs;
 
 import helpers.MockHelper;
+import helpers.ResponseValidator;
 import io.cucumber.datatable.DataTable;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -9,9 +10,11 @@ import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import support.ScenarioContext;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Shared steps reusable across all feature files.
@@ -60,14 +63,6 @@ public class CommonSteps {
                 "Unexpected HTTP status code");
     }
 
-    @Then("the response should contain field {string}")
-    public void theResponseShouldContainField(String fieldPath) {
-        assertNotNull(context.getResponse(), "No response captured — was the API called?");
-        String value = context.getResponse().jsonPath().getString(fieldPath);
-        assertNotNull(value, "Expected field '" + fieldPath + "' to be present but was null");
-        assertFalse(value.isEmpty(), "Expected field '" + fieldPath + "' to be non-empty");
-    }
-
     @Then("the response field {string} should be {string}")
     public void theResponseFieldShouldBe(String fieldPath, String expectedValue) {
         assertNotNull(context.getResponse(), "No response captured — was the API called?");
@@ -86,15 +81,18 @@ public class CommonSteps {
                 "Unexpected error message");
     }
 
-    @Then("the response should match:")
-    public void theResponseShouldMatch(DataTable table) {
+    // ── Named-expectation validation ────────────────────────────────────
+    //    Feature file says WHAT to validate; the JSON file under
+    //    src/test/resources/expectations/ defines HOW.
+
+    @Then("the response body should match expectation {string}")
+    public void theResponseBodyShouldMatchExpectation(String expectationName) {
         assertNotNull(context.getResponse(), "No response captured — was the API called?");
-        for (var row : table.asMaps()) {
-            String field = row.get("field");
-            String expected = row.get("value");
-            String actual = context.getResponse().jsonPath().getString(field);
-            assertEquals(expected, actual, "Mismatch on field '" + field + "'");
-        }
+        List<String> mismatches = ResponseValidator.validate(
+                context.getResponse().getBody().asString(), expectationName);
+        assertTrue(mismatches.isEmpty(),
+                "Response did not match expectation '" + expectationName + "':\n  - "
+                        + String.join("\n  - ", mismatches));
     }
 
     // ── Store & recall (for chained scenarios) ──────────────────────────

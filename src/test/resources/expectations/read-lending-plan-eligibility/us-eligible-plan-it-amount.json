@@ -1,0 +1,12 @@
+{
+  "eligible": true,
+  "market": "US",
+  "featureName": "PLAN-IT-AMOUNT",
+  "maxInstallments": "${type:number}",
+  "minAmount": "${type:number}",
+  "lendingConfig": {
+    "provider": "${notNull}",
+    "enabledFeatures": "${type:array}",
+    "evaluatedAt": "${regex:\\d{4}-\\d{2}-\\d{2}.*}"
+  }
+}

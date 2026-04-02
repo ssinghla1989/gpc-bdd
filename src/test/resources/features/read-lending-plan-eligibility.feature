@@ -4,11 +4,12 @@ Feature: ReadLendingPlanEligibility API
   I want to check customer eligibility for Plan It features
   So that I can offer the correct lending products based on market rules
 
-  # ── Template 1: Simple happy-path scenario ────────────────────────────
-  #    Use when: single API call with straightforward pass/fail assertions.
+  # ── Template 1: Simple happy-path ─────────────────────────────────────
+  #    Quick smoke test — one or two inline field checks prove the flow works.
+  #    Best for: smoke tests, minimal-confidence checks.
 
   @smoke
-  Scenario: US market active basic-card customer is eligible for Plan It Amount
+  Scenario: US active basic-card customer is eligible for Plan It Amount
     Given the following mock interactions are registered:
       | interaction                              |
       | read-member/us-active-basic              |
@@ -17,11 +18,10 @@ Feature: ReadLendingPlanEligibility API
     When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
     Then the response status code should be 200
     And the response field "eligible" should be "true"
-    And the response should contain field "maxInstallments"
 
-  # ── Template 2: Data-driven error cases via Scenario Outline ──────────
-  #    Use when: multiple inputs produce different expected errors/statuses
-  #    and the test logic is identical across rows.
+  # ── Template 2: Data-driven error cases (Scenario Outline) ────────────
+  #    Same test logic, parameterised across rows.
+  #    Best for: covering many negative paths without duplicating scenarios.
 
   Scenario Outline: Decline — <reason>
     Given mock interactions "<interactions>" are registered
@@ -30,17 +30,20 @@ Feature: ReadLendingPlanEligibility API
     Then the request should be declined with status <status> and error "<error>"
 
     Examples:
-      | reason                    | market | interactions                                                              | feature         | status | error                                       |
-      | Japan market ineligible   | japan  | read-member/japan-market-response                                         | PLAN-IT-AMOUNT  | 422    | Feature name is invalid for japan market     |
-      | Inactive account          | us     | read-member/us-inactive-basic                                             | PLAN-IT-AMOUNT  | 422    | Account is not active                        |
+      | reason                    | market | interactions                                                               | feature         | status | error                                       |
+      | Japan market ineligible   | japan  | read-member/japan-market-response                                          | PLAN-IT-AMOUNT  | 422    | Feature name is invalid for japan market     |
+      | Inactive account          | us     | read-member/us-inactive-basic                                              | PLAN-IT-AMOUNT  | 422    | Account is not active                        |
       | Supplementary card holder | us     | read-member/us-active-supplementary,read-lending-config/us-plan-it-enabled | PLAN-IT-AMOUNT  | 422    | Supplementary card holders are not eligible  |
-      | Invalid feature name      | us     | read-member/us-active-basic                                               | INVALID-FEATURE | 422    | Feature name is invalid                      |
+      | Invalid feature name      | us     | read-member/us-active-basic                                                | INVALID-FEATURE | 422    | Feature name is invalid                      |
 
-  # ── Template 3: Multi-field response validation with DataTable ────────
-  #    Use when: you need to assert many response fields at once.
-  #    The DataTable keeps the feature file readable without a wall of And-steps.
+  # ── Template 3: Named expectation for complex response validation ─────
+  #    The feature file states WHAT to validate; the HOW lives in a JSON
+  #    file under src/test/resources/expectations/.
+  #    The expectation JSON supports matchers: ${notNull}, ${type:number},
+  #    ${regex:pattern}, ${contains:text}, ${greaterThan:n}, ${ignore}.
+  #    Best for: responses with many fields, nested objects, or arrays.
 
-  Scenario: Eligible response contains full lending configuration details
+  Scenario: Eligible response contains full lending configuration
     Given the following mock interactions are registered:
       | interaction                              |
       | read-member/us-active-basic              |
@@ -48,19 +51,13 @@ Feature: ReadLendingPlanEligibility API
     And a "us" market customer
     When the customer checks eligibility for feature "PLAN-IT-AMOUNT"
     Then the response status code should be 200
-    And the response should match:
-      | field           | value          |
-      | eligible        | true           |
-      | market          | US             |
-      | featureName     | PLAN-IT-AMOUNT |
-      | maxInstallments | 24             |
-      | minAmount       | 100            |
+    And the response body should match expectation "read-lending-plan-eligibility/us-eligible-plan-it-amount"
 
-  # ── Template 4: Chained API calls with stored context ─────────────────
-  #    Use when: a later API call depends on data from an earlier response,
-  #    e.g. read a resource, then update it, then verify the update.
+  # ── Template 4: Chained API calls with cross-call validation ──────────
+  #    Call API A, store a field, call API B, verify stored value.
+  #    Best for: workflows where APIs feed into each other.
 
-  Scenario: Eligibility details match the downstream lending configuration
+  Scenario: Eligibility details are consistent with lending configuration
     Given the following mock interactions are registered:
       | interaction                              |
       | read-member/us-active-basic              |

@@ -32,7 +32,7 @@ src/test/
 │   │   ├── MockHelper.java           # Registers/clears mock interactions
 │   │   └── ResponseValidator.java    # JSON expectation matcher engine
 │   ├── stepdefs/                     # Cucumber step definitions
-│   │   ├── CommonSteps.java          # Shared steps (mocks, assertions, expectations)
+│   │   ├── CommonSteps.java          # Shared steps (mocks, status/error assertions, expectations)
 │   │   └── ReadLending...Steps.java  # Domain-specific steps per API
 │   └── support/
 │       ├── Hooks.java                # @BeforeAll, @Before, @After lifecycle
